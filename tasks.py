@@ -52,14 +52,18 @@ def create_tasks(
             "strategy. The output must be entirely in Turkish and clearly separated "
             "by the three horizons (kisa/orta/uzun vade). "
             "Include a concise Turkish terminal summary. "
+            "If data is missing or tools failed, clearly state this in Turkish "
+            "inside the report and set data_health to 'partial'. Otherwise "
+            "set data_health to 'ok'. "
             "Call the draw_portfolio_pie tool with a JSON object representing the "
             "overall allocation (sums to 100). "
             "Return a single JSON object with: report_markdown, terminal_summary, "
-            "portfolio_allocation."
+            "portfolio_allocation, data_health."
         ),
         expected_output=(
             "JSON with keys: report_markdown (Markdown string), "
-            "terminal_summary (string), portfolio_allocation (object). "
+            "terminal_summary (string), portfolio_allocation (object), "
+            "data_health (ok|partial). "
             "All text must be Turkish."
         ),
         agent=agents["reporter"],

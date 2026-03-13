@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
+from pathlib import Path
 from getpass import getpass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, TypedDict
 
 from crewai import Crew, Process
 from dotenv import load_dotenv
@@ -13,6 +15,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from agents import create_agents
 from tasks import create_tasks
 from tools import draw_portfolio_pie
+
+
+class ReportPayload(TypedDict, total=False):
+    report_markdown: str
+    terminal_summary: str
+    portfolio_allocation: Dict[str, float]
+    data_health: str
 
 
 def _prompt_api_key() -> str:
@@ -52,6 +61,18 @@ def _prompt_capital() -> float:
             print("Gecersiz tutar. Ornek: 250000")
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Personal CFO CLI")
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Non-interactive mode (requires env vars).",
+    )
+    parser.add_argument("--risk", type=str, default="")
+    parser.add_argument("--capital", type=str, default="")
+    return parser.parse_args()
+
+
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
     text = text.strip()
     if text.startswith("{") and text.endswith("}"):
@@ -68,28 +89,84 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _parse_report_output(raw: str) -> Tuple[str, str, Optional[Dict[str, Any]]]:
+def _log_raw_output(raw: str) -> None:
+    Path("logs").mkdir(exist_ok=True)
+    with open("logs/raw_report.txt", "w", encoding="utf-8") as f:
+        f.write(raw)
+
+
+def _validate_report_payload(data: Dict[str, Any]) -> ReportPayload:
+    payload: ReportPayload = {}
+    if isinstance(data.get("report_markdown"), str):
+        payload["report_markdown"] = data["report_markdown"].strip()
+    if isinstance(data.get("terminal_summary"), str):
+        payload["terminal_summary"] = data["terminal_summary"].strip()
+    if isinstance(data.get("portfolio_allocation"), dict):
+        allocation = {
+            str(k): float(v)
+            for k, v in data["portfolio_allocation"].items()
+            if isinstance(v, (int, float))
+        }
+        if allocation:
+            payload["portfolio_allocation"] = allocation
+    if isinstance(data.get("data_health"), str):
+        payload["data_health"] = data["data_health"].strip()
+    return payload
+
+
+def _parse_report_output(raw: str) -> Tuple[str, str, Optional[Dict[str, float]]]:
     data = _extract_json(raw)
     if not data:
-        return raw, "", None
-    report_md = str(data.get("report_markdown", "")).strip()
-    summary = str(data.get("terminal_summary", "")).strip()
-    allocation = data.get("portfolio_allocation")
-    if isinstance(allocation, dict):
-        return report_md, summary, allocation
-    return report_md, summary, None
+        _log_raw_output(raw)
+        return "", "", None
+    payload = _validate_report_payload(data)
+    report_md = payload.get("report_markdown", "")
+    summary = payload.get("terminal_summary", "")
+    allocation = payload.get("portfolio_allocation")
+    return report_md, summary, allocation
+
+
+def _normalize_allocation(allocation: Dict[str, float]) -> Dict[str, float]:
+    cleaned = {k: max(0.0, float(v)) for k, v in allocation.items()}
+    total = sum(cleaned.values())
+    if total <= 0:
+        return {}
+    return {k: round((v / total) * 100.0, 2) for k, v in cleaned.items()}
+
+
+def _validate_allocation(allocation: Dict[str, float]) -> bool:
+    if not allocation:
+        return False
+    total = sum(allocation.values())
+    return 98.0 <= total <= 102.0 and all(v >= 0 for v in allocation.values())
 
 
 def main() -> None:
+    args = _parse_args()
     load_dotenv()
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
+        if args.non_interactive:
+            print("GEMINI_API_KEY bulunamadi. Non-interactive modda .env gerekli.")
+            return
         api_key = _prompt_api_key()
         os.environ["GEMINI_API_KEY"] = api_key
 
-    risk_tolerance = _prompt_risk_tolerance()
-    investment_capital = _prompt_capital()
+    if args.non_interactive:
+        risk_tolerance = (args.risk or os.getenv("RISK_TOLERANCE", "")).strip()
+        capital_raw = (args.capital or os.getenv("INVESTMENT_CAPITAL", "")).strip()
+        if not risk_tolerance or not capital_raw:
+            print("Non-interactive mod icin RISK_TOLERANCE ve INVESTMENT_CAPITAL gerekli.")
+            return
+        try:
+            investment_capital = float(capital_raw)
+        except Exception:
+            print("INVESTMENT_CAPITAL sayi olmali.")
+            return
+    else:
+        risk_tolerance = _prompt_risk_tolerance()
+        investment_capital = _prompt_capital()
 
     llm_flash = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash",
@@ -125,12 +202,18 @@ def main() -> None:
     raw_output = str(result)
     report_md, summary, allocation = _parse_report_output(raw_output)
 
+    if not report_md:
+        print("Rapor JSON formatinda uretilmedi. Ham cikti logs/raw_report.txt dosyasinda.")
+        return
+
     if report_md:
         with open("monthly_cfo_report.md", "w", encoding="utf-8") as f:
             f.write(report_md)
 
     if allocation:
-        draw_portfolio_pie(json.dumps(allocation, ensure_ascii=False))
+        normalized = _normalize_allocation(allocation)
+        if _validate_allocation(normalized):
+            draw_portfolio_pie(json.dumps(normalized, ensure_ascii=False))
 
     if summary:
         print("\n--- Ozet ---")

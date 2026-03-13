@@ -33,6 +33,15 @@ Calistirma sirasinda:
 
 Rapor: `monthly_cfo_report.md` olarak uretilir.
 
+## Non-Interactive Mod
+CI/cron icin:
+```
+export GEMINI_API_KEY=...
+export RISK_TOLERANCE=Low
+export INVESTMENT_CAPITAL=250000
+python main.py --non-interactive
+```
+
 ## Smoke Test
 Bagimlilik kurmadan sadece temel yapisal kontrol icin:
 ```
