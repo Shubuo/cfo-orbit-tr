@@ -1,6 +1,6 @@
 crewai>=0.30,<1.0
 borsapy>=0.1.0
-tefasfon>=1.0.0
+tefasfon>=0.4.1,<1.0.0
 plotext>=5.2.0
 langchain-google-genai>=1.0.0
 python-dotenv>=1.0.0
