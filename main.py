@@ -4,18 +4,13 @@ import argparse
 import json
 import os
 import re
+import sys
+import urllib.request
 from pathlib import Path
 from getpass import getpass
 from typing import Any, Dict, Optional, Tuple, TypedDict
 
-from crewai import Crew, Process
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-from agents import create_agents
-from tasks import create_tasks
-from tools import draw_portfolio_pie
-
 
 class ReportPayload(TypedDict, total=False):
     report_markdown: str
@@ -29,6 +24,46 @@ def _prompt_api_key() -> str:
     if not api_key:
         raise ValueError("GEMINI_API_KEY bos olamaz.")
     return api_key
+
+
+def _find_conda_sqlite_lib_dir() -> str | None:
+    conda_root = Path(sys.executable).resolve().parents[1]
+    pkgs_dir = conda_root / "pkgs"
+    if not pkgs_dir.exists():
+        return None
+    candidates = sorted(pkgs_dir.glob("libsqlite-*/lib/libsqlite3.0.dylib"))
+    if not candidates:
+        return None
+    return str(candidates[-1].parent)
+
+
+def _ensure_sqlite_runtime() -> None:
+    # On macOS with conda, sqlite may resolve to the system dylib and fail.
+    # If so, re-exec with DYLD_LIBRARY_PATH pointing to conda's libsqlite.
+    if sys.platform != "darwin":
+        return
+    if os.environ.get("CREWAI_DYLD_PATCHED") == "1":
+        return
+    lib_dir = _find_conda_sqlite_lib_dir()
+    if not lib_dir:
+        return
+    os.environ["DYLD_LIBRARY_PATH"] = lib_dir
+    os.environ["CREWAI_DYLD_PATCHED"] = "1"
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+def _ensure_crewai_storage() -> None:
+    # CrewAI uses appdirs on macOS and writes under ~/Library/Application Support.
+    # In restricted environments, that path can be non-writable. If so, redirect
+    # HOME to a local writable directory inside the project.
+    app_name = os.environ.get("CREWAI_STORAGE_DIR", Path.cwd().name)
+    default_dir = Path.home() / "Library" / "Application Support" / app_name
+    try:
+        default_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        local_home = Path.cwd() / ".crewai_home"
+        local_home.mkdir(parents=True, exist_ok=True)
+        os.environ["HOME"] = str(local_home)
 
 
 def _prompt_risk_tolerance() -> str:
@@ -67,6 +102,11 @@ def _parse_args() -> argparse.Namespace:
         "--non-interactive",
         action="store_true",
         help="Non-interactive mode (requires env vars).",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List available Gemini models for the provided API key.",
     )
     parser.add_argument("--risk", type=str, default="")
     parser.add_argument("--capital", type=str, default="")
@@ -126,6 +166,19 @@ def _parse_report_output(raw: str) -> Tuple[str, str, Optional[Dict[str, float]]
     return report_md, summary, allocation
 
 
+def _list_gemini_models(api_key: str) -> None:
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models"
+        f"?key={api_key}"
+    )
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    models = [m.get("name") for m in data.get("models", []) if "name" in m]
+    print("Kullanilabilir modeller:")
+    for name in models:
+        print(f"- {name}")
+
+
 def _normalize_allocation(allocation: Dict[str, float]) -> Dict[str, float]:
     cleaned = {k: max(0.0, float(v)) for k, v in allocation.items()}
     total = sum(cleaned.values())
@@ -142,8 +195,12 @@ def _validate_allocation(allocation: Dict[str, float]) -> bool:
 
 
 def main() -> None:
+    _ensure_sqlite_runtime()
     args = _parse_args()
     load_dotenv()
+
+    os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
+    os.environ.setdefault("CREWAI_TESTING", "true")
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -152,6 +209,10 @@ def main() -> None:
             return
         api_key = _prompt_api_key()
         os.environ["GEMINI_API_KEY"] = api_key
+
+    if args.list_models:
+        _list_gemini_models(api_key)
+        return
 
     if args.non_interactive:
         risk_tolerance = (args.risk or os.getenv("RISK_TOLERANCE", "")).strip()
@@ -168,15 +229,36 @@ def main() -> None:
         risk_tolerance = _prompt_risk_tolerance()
         investment_capital = _prompt_capital()
 
-    llm_flash = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+    _ensure_crewai_storage()
+
+    from crewai import Crew, Process  # lazy import after storage setup
+    from agents import create_agents
+    from llm import GoogleGenaiLLM
+    from tasks import create_tasks
+    from tools import draw_portfolio_pie
+
+    flash_model = os.getenv("GEMINI_FLASH_MODEL", "gemini-1.5-flash-latest")
+    pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-1.5-pro-latest")
+    flash_fallbacks = os.getenv(
+        "GEMINI_FLASH_FALLBACK",
+        "gemini-1.5-flash,gemini-1.5-flash-001",
+    ).split(",")
+    pro_fallbacks = os.getenv(
+        "GEMINI_PRO_FALLBACK",
+        "gemini-1.5-pro,gemini-1.5-pro-001",
+    ).split(",")
+
+    llm_flash = GoogleGenaiLLM(
+        model=flash_model,
         temperature=0.2,
-        google_api_key=api_key,
+        api_key=api_key,
+        fallback_models=flash_fallbacks,
     )
-    llm_pro = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+    llm_pro = GoogleGenaiLLM(
+        model=pro_model,
         temperature=0.2,
-        google_api_key=api_key,
+        api_key=api_key,
+        fallback_models=pro_fallbacks,
     )
 
     agents = create_agents(llm_pro=llm_pro, llm_flash=llm_flash)

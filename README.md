@@ -42,6 +42,23 @@ export INVESTMENT_CAPITAL=250000
 python main.py --non-interactive
 ```
 
+## Model Ayari
+Varsayilanlar `gemini-1.5-flash-latest` ve `gemini-1.5-pro-latest` olarak gelir.
+Diger isimler icin:
+```
+export GEMINI_FLASH_MODEL=gemini-1.5-flash
+export GEMINI_PRO_MODEL=gemini-1.5-pro
+```
+Istersen yedek modelleri de belirtebilirsin:
+```
+export GEMINI_FLASH_FALLBACK=gemini-1.5-flash,gemini-1.5-flash-001
+export GEMINI_PRO_FALLBACK=gemini-1.5-pro,gemini-1.5-pro-001
+```
+Mevcut modelleri listelemek icin:
+```
+python main.py --list-models
+```
+
 ## Smoke Test
 Bagimlilik kurmadan sadece temel yapisal kontrol icin:
 ```
