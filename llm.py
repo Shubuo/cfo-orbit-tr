@@ -67,7 +67,14 @@ class GoogleGenaiLLM(BaseLLM):
             return self._invoke(self.model, lc_messages)
         except Exception as exc:
             msg = str(exc)
-            if "NOT_FOUND" in msg or "not found" in msg:
+            should_fallback = (
+                "NOT_FOUND" in msg
+                or "not found" in msg
+                or "RESOURCE_EXHAUSTED" in msg
+                or "Quota exceeded" in msg
+                or "429" in msg
+            )
+            if should_fallback and self.fallback_models:
                 for fallback in self.fallback_models:
                     try:
                         return self._invoke(fallback, lc_messages)

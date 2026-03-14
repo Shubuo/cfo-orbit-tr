@@ -237,15 +237,15 @@ def main() -> None:
     from tasks import create_tasks
     from tools import draw_portfolio_pie
 
-    flash_model = os.getenv("GEMINI_FLASH_MODEL", "gemini-1.5-flash-latest")
-    pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-1.5-pro-latest")
+    flash_model = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash")
+    pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro")
     flash_fallbacks = os.getenv(
         "GEMINI_FLASH_FALLBACK",
-        "gemini-1.5-flash,gemini-1.5-flash-001",
+        "gemini-2.0-flash,gemini-flash-latest",
     ).split(",")
     pro_fallbacks = os.getenv(
         "GEMINI_PRO_FALLBACK",
-        "gemini-1.5-pro,gemini-1.5-pro-001",
+        "gemini-pro-latest,gemini-2.0-flash",
     ).split(",")
 
     llm_flash = GoogleGenaiLLM(

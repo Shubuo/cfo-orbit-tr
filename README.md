@@ -43,16 +43,16 @@ python main.py --non-interactive
 ```
 
 ## Model Ayari
-Varsayilanlar `gemini-1.5-flash-latest` ve `gemini-1.5-pro-latest` olarak gelir.
+Varsayilanlar `gemini-2.5-flash` ve `gemini-2.5-pro` olarak gelir.
 Diger isimler icin:
 ```
-export GEMINI_FLASH_MODEL=gemini-1.5-flash
-export GEMINI_PRO_MODEL=gemini-1.5-pro
+export GEMINI_FLASH_MODEL=gemini-2.0-flash
+export GEMINI_PRO_MODEL=gemini-pro-latest
 ```
 Istersen yedek modelleri de belirtebilirsin:
 ```
-export GEMINI_FLASH_FALLBACK=gemini-1.5-flash,gemini-1.5-flash-001
-export GEMINI_PRO_FALLBACK=gemini-1.5-pro,gemini-1.5-pro-001
+export GEMINI_FLASH_FALLBACK=gemini-2.0-flash,gemini-flash-latest
+export GEMINI_PRO_FALLBACK=gemini-pro-latest,gemini-2.0-flash
 ```
 Mevcut modelleri listelemek icin:
 ```
