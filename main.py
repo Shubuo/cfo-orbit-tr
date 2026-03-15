@@ -197,6 +197,24 @@ def _parse_report_output(raw: str) -> Tuple[str, str, Optional[Dict[str, float]]
     return report_md, summary, allocation
 
 
+def _strip_signature(text: str) -> str:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        normalized = line.strip().lower()
+        if normalized.startswith(
+            (
+                "saygılarımızla",
+                "saygilarimizla",
+                "saygılarımla",
+                "saygilarimla",
+                "saygılarla",
+                "saygilarla",
+            )
+        ):
+            return "\n".join(lines[:i]).rstrip()
+    return text
+
+
 def _list_gemini_models(api_key: str) -> None:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models"
@@ -320,7 +338,11 @@ def main() -> None:
     from tasks import create_tasks
     from tools import draw_portfolio_pie, fetch_liquid_bist100_stocks, fetch_top_tefas_funds, fetch_tuik_inflation
     from domain.models import MarketState, ReportInputs
-    from application.reporting import build_macro_micro_summary, build_instrument_list
+    from application.reporting import (
+        build_macro_micro_summary,
+        build_instrument_list,
+        build_missing_notice,
+    )
 
     flash_model = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash")
     pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro")
@@ -378,6 +400,14 @@ def main() -> None:
         bist100_liquid=raw_stocks.get("liquid_stocks", raw_stocks.get("bist100_liquid", [])),
     )
 
+    missing_info = []
+    if not market_state.inflation:
+        missing_info.append("Enflasyon (TÜİK) verisi alınamadı.")
+    if not market_state.tefas_top_funds:
+        missing_info.append("TEFAS fon verisi alınamadı.")
+    if not market_state.bist100_liquid:
+        missing_info.append("BIST100 likidite verisi alınamadı.")
+
     inputs = ReportInputs(
         report_type=report_type,
         output_type=output_type,
@@ -417,13 +447,20 @@ def main() -> None:
     )
 
     if report_md:
+        report_md = _strip_signature(report_md)
         if output_type == "bulletin":
             report_md = f"{report_md}\n\n{build_macro_micro_summary(market_state)}"
         if output_type == "advice":
             report_md = f"{report_md}\n\n{build_instrument_list(market_state)}"
-        with open("monthly_cfo_report.md", "w", encoding="utf-8") as f:
+        missing_block = build_missing_notice(missing_info)
+        if missing_block:
+            report_md = f"{report_md}\n\n{missing_block}"
+
+        report_slug = f"{report_type}_{output_type}"
+        report_file = f"report_{report_slug}.md"
+        with open(report_file, "w", encoding="utf-8") as f:
             f.write(report_md)
-        (report_dir / "report.md").write_text(report_md, encoding="utf-8")
+        (report_dir / report_file).write_text(report_md, encoding="utf-8")
         (report_dir / "output.json").write_text(
             json.dumps(
                 {"report_markdown": report_md, "terminal_summary": summary, "portfolio_allocation": allocation},
@@ -442,9 +479,13 @@ def main() -> None:
     if summary:
         print("\n--- Ozet ---")
         print(summary)
-        (report_dir / "summary.txt").write_text(summary, encoding="utf-8")
+        (report_dir / f"summary_{report_type}_{output_type}.txt").write_text(summary, encoding="utf-8")
+        if missing_info:
+            print("\n--- Eksik Veriler ---")
+            for item in missing_info:
+                print(f"- {item}")
     else:
-        print("\nRapor olusturuldu: monthly_cfo_report.md")
+        print(f"\nRapor olusturuldu: {report_file}")
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ Calistirma sirasinda:
 - Yatirim sermayesi (TL)
 
 Rapor: `monthly_cfo_report.md` olarak uretilir.
+Yeni surumde dosya adlari rapor turune gore farkli olur: `report_weekly_bulletin.md` vb.
 
 ## Non-Interactive Mod
 CI/cron icin:
