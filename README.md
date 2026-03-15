@@ -54,6 +54,10 @@ Istersen yedek modelleri de belirtebilirsin:
 export GEMINI_FLASH_FALLBACK=gemini-2.0-flash,gemini-flash-latest
 export GEMINI_PRO_FALLBACK=gemini-pro-latest,gemini-2.0-flash
 ```
+Pro kotasi yoksa otomatik flash kullanmak icin:
+```
+export GEMINI_FORCE_FLASH_FOR_PRO=true
+```
 Mevcut modelleri listelemek icin:
 ```
 python main.py --list-models

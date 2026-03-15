@@ -35,6 +35,9 @@ class GoogleGenaiLLM(BaseLLM):
                 google_api_key=self.api_key,
             )
             response = client.invoke(messages)
+            # Persist the working model/client for subsequent calls.
+            self.model = model
+            self.client = client
         else:
             response = self.client.invoke(messages)
         return getattr(response, "content", str(response))

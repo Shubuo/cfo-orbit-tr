@@ -194,6 +194,19 @@ def _validate_allocation(allocation: Dict[str, float]) -> bool:
     return 98.0 <= total <= 102.0 and all(v >= 0 for v in allocation.values())
 
 
+def _probe_llm_or_fallback(
+    llm: "GoogleGenaiLLM", fallback_llm: "GoogleGenaiLLM"
+) -> "GoogleGenaiLLM":
+    try:
+        llm.call("ping")
+        return llm
+    except Exception as exc:
+        msg = str(exc)
+        if "RESOURCE_EXHAUSTED" in msg or "Quota exceeded" in msg or "429" in msg:
+            return fallback_llm
+        return llm
+
+
 def main() -> None:
     _ensure_sqlite_runtime()
     args = _parse_args()
@@ -260,6 +273,11 @@ def main() -> None:
         api_key=api_key,
         fallback_models=pro_fallbacks,
     )
+
+    if os.getenv("GEMINI_FORCE_FLASH_FOR_PRO", "false").lower() == "true":
+        llm_pro = llm_flash
+    else:
+        llm_pro = _probe_llm_or_fallback(llm_pro, llm_flash)
 
     agents = create_agents(llm_pro=llm_pro, llm_flash=llm_flash)
     tasks = create_tasks(
