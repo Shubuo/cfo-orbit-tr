@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from getpass import getpass
 from typing import Any, Dict, Optional, Tuple, TypedDict
@@ -96,6 +97,30 @@ def _prompt_capital() -> float:
             print("Gecersiz tutar. Ornek: 250000")
 
 
+def _prompt_report_type() -> str:
+    while True:
+        value = input("Rapor Tipi (Weekly/Monthly): ").strip().lower()
+        if value in ("weekly", "monthly"):
+            return value
+        print("Gecersiz giris. Weekly/Monthly girin.")
+
+
+def _prompt_output_type() -> str:
+    while True:
+        value = input("Cikti Turu (Bulletin/Advice): ").strip().lower()
+        if value in ("bulletin", "advice"):
+            return value
+        print("Gecersiz giris. Bulletin/Advice girin.")
+
+
+def _prompt_region() -> str:
+    while True:
+        value = input("Bolge (TR): ").strip().lower()
+        if value in ("tr", "turkiye", "türkiye"):
+            return "TR"
+        print("Gecersiz giris. TR secin.")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Personal CFO CLI")
     parser.add_argument(
@@ -108,6 +133,10 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="List available Gemini models for the provided API key.",
     )
+    parser.add_argument("--report-type", type=str, default="")
+    parser.add_argument("--output-type", type=str, default="")
+    parser.add_argument("--region", type=str, default="")
+    parser.add_argument("--sandbox", action="store_true")
     parser.add_argument("--risk", type=str, default="")
     parser.add_argument("--capital", type=str, default="")
     return parser.parse_args()
@@ -115,6 +144,8 @@ def _parse_args() -> argparse.Namespace:
 
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
     text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"```(?:json)?", "", text).strip()
     if text.startswith("{") and text.endswith("}"):
         try:
             return json.loads(text)
@@ -239,6 +270,8 @@ def main() -> None:
 
     os.environ.setdefault("CREWAI_DISABLE_TELEMETRY", "true")
     os.environ.setdefault("CREWAI_TESTING", "true")
+    if args.sandbox:
+        os.environ["SANDBOX_MODE"] = "true"
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -255,8 +288,17 @@ def main() -> None:
     if args.non_interactive:
         risk_tolerance = (args.risk or os.getenv("RISK_TOLERANCE", "")).strip()
         capital_raw = (args.capital or os.getenv("INVESTMENT_CAPITAL", "")).strip()
+        report_type = (args.report_type or os.getenv("REPORT_TYPE", "")).strip().lower()
+        output_type = (args.output_type or os.getenv("OUTPUT_TYPE", "")).strip().lower()
+        region = (args.region or os.getenv("REGION", "TR")).strip().upper()
         if not risk_tolerance or not capital_raw:
             print("Non-interactive mod icin RISK_TOLERANCE ve INVESTMENT_CAPITAL gerekli.")
+            return
+        if report_type not in ("weekly", "monthly"):
+            print("REPORT_TYPE weekly veya monthly olmali.")
+            return
+        if output_type not in ("bulletin", "advice"):
+            print("OUTPUT_TYPE bulletin veya advice olmali.")
             return
         try:
             investment_capital = float(capital_raw)
@@ -266,6 +308,9 @@ def main() -> None:
     else:
         risk_tolerance = _prompt_risk_tolerance()
         investment_capital = _prompt_capital()
+        report_type = _prompt_report_type()
+        output_type = _prompt_output_type()
+        region = _prompt_region()
 
     _ensure_crewai_storage()
 
@@ -273,7 +318,9 @@ def main() -> None:
     from agents import create_agents
     from llm import GoogleGenaiLLM
     from tasks import create_tasks
-    from tools import draw_portfolio_pie
+    from tools import draw_portfolio_pie, fetch_liquid_bist100_stocks, fetch_top_tefas_funds, fetch_tuik_inflation
+    from domain.models import MarketState, ReportInputs
+    from application.reporting import build_macro_micro_summary, build_instrument_list
 
     flash_model = os.getenv("GEMINI_FLASH_MODEL", "gemini-2.5-flash")
     pro_model = os.getenv("GEMINI_PRO_MODEL", "gemini-2.5-pro")
@@ -309,6 +356,9 @@ def main() -> None:
         agents=agents,
         risk_tolerance=risk_tolerance,
         investment_capital=investment_capital,
+        report_type=report_type,
+        output_type=output_type,
+        region=region,
     )
 
     crew = Crew(
@@ -316,6 +366,25 @@ def main() -> None:
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
+    )
+
+    raw_inflation = json.loads(fetch_tuik_inflation.run())
+    raw_funds = json.loads(fetch_top_tefas_funds.run())
+    raw_stocks = json.loads(fetch_liquid_bist100_stocks.run())
+    market_state = MarketState(
+        timestamp=raw_inflation.get("timestamp", ""),
+        inflation=raw_inflation.get("inflation", raw_inflation),
+        tefas_top_funds=raw_funds.get("top_funds", raw_funds.get("tefas_top_funds", [])),
+        bist100_liquid=raw_stocks.get("liquid_stocks", raw_stocks.get("bist100_liquid", [])),
+    )
+
+    inputs = ReportInputs(
+        report_type=report_type,
+        output_type=output_type,
+        region=region,
+        risk_tolerance=risk_tolerance,
+        investment_capital=investment_capital,
+        sandbox=os.getenv("SANDBOX_MODE", "false").lower() == "true",
     )
 
     try:
@@ -331,19 +400,49 @@ def main() -> None:
         print("Rapor JSON formatinda uretilmedi. Ham cikti logs/raw_report.txt dosyasinda.")
         return
 
+    report_dir = Path("reports") / datetime.now().strftime("%Y-%m-%d")
+    report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "inputs.json").write_text(json.dumps(inputs.__dict__, ensure_ascii=False, indent=2), encoding="utf-8")
+    (report_dir / "raw_data.json").write_text(
+        json.dumps(
+            {
+                "inflation": market_state.inflation,
+                "tefas_top_funds": market_state.tefas_top_funds,
+                "bist100_liquid": market_state.bist100_liquid,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
     if report_md:
+        if output_type == "bulletin":
+            report_md = f"{report_md}\n\n{build_macro_micro_summary(market_state)}"
+        if output_type == "advice":
+            report_md = f"{report_md}\n\n{build_instrument_list(market_state)}"
         with open("monthly_cfo_report.md", "w", encoding="utf-8") as f:
             f.write(report_md)
+        (report_dir / "report.md").write_text(report_md, encoding="utf-8")
+        (report_dir / "output.json").write_text(
+            json.dumps(
+                {"report_markdown": report_md, "terminal_summary": summary, "portfolio_allocation": allocation},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     if allocation:
         overall = _overall_allocation(allocation)
         normalized = _normalize_allocation(overall)
         if _validate_allocation(normalized):
-            draw_portfolio_pie(json.dumps(normalized, ensure_ascii=False))
+            draw_portfolio_pie.run(json.dumps(normalized, ensure_ascii=False))
 
     if summary:
         print("\n--- Ozet ---")
         print(summary)
+        (report_dir / "summary.txt").write_text(summary, encoding="utf-8")
     else:
         print("\nRapor olusturuldu: monthly_cfo_report.md")
 

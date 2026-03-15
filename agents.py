@@ -4,7 +4,11 @@ from typing import Dict
 
 from crewai import Agent
 
-from tools import fetch_liquid_bist100_stocks, fetch_top_tefas_funds, fetch_tuik_inflation
+from tools import (
+    fetch_liquid_bist100_stocks,
+    fetch_top_tefas_funds,
+    fetch_tuik_inflation,
+)
 
 
 def create_agents(llm_pro: object, llm_flash: object) -> Dict[str, Agent]:

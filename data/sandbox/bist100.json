@@ -1,0 +1,11 @@
+{
+  "source": "sandbox",
+  "timestamp": "2024-07-26T10:00:00Z",
+  "liquid_stocks": [
+    { "symbol": "THYAO", "company_name": "Türk Hava Yolları A.O.", "last_price": 285.5, "volume": 15000000 },
+    { "symbol": "EREGL", "company_name": "Ereğli Demir ve Çelik Fabrikaları T.A.Ş.", "last_price": 45.2, "volume": 12000000 },
+    { "symbol": "AKBNK", "company_name": "Akbank T.A.Ş.", "last_price": 55.8, "volume": 10000000 },
+    { "symbol": "GARAN", "company_name": "T. Garanti Bankası A.Ş.", "last_price": 80.1, "volume": 9500000 },
+    { "symbol": "ISCTR", "company_name": "Türkiye İş Bankası A.Ş. (C)", "last_price": 30.5, "volume": 8000000 }
+  ]
+}

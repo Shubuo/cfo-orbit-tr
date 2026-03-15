@@ -1,0 +1,8 @@
+{
+  "source": "sandbox",
+  "timestamp": "2024-07-26T10:00:00Z",
+  "inflation": {
+    "cpi": { "current": 75.45, "monthly_change": 3.2, "annual_change": 75.45 },
+    "ppi": { "current": 60.12, "monthly_change": 2.1, "annual_change": 60.12 }
+  }
+}

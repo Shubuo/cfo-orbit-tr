@@ -9,6 +9,9 @@ def create_tasks(
     agents: Dict[str, object],
     risk_tolerance: str,
     investment_capital: float,
+    report_type: str,
+    output_type: str,
+    region: str,
 ) -> List[Task]:
     """Create and return the ordered task list for a sequential Crew."""
     data_task = Task(
@@ -57,6 +60,7 @@ def create_tasks(
             "If data is missing or tools failed, clearly state this in Turkish "
             "inside the report and set data_health to 'partial'. Otherwise "
             "set data_health to 'ok'. "
+            f"Report type: {report_type}. Output type: {output_type}. Region: {region}. "
             "Return a single JSON object with: report_markdown, terminal_summary, "
             "portfolio_allocation, data_health. "
             "portfolio_allocation must be a flat object with numeric weights only "

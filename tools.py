@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
@@ -28,11 +29,29 @@ def _safe_to_records(data: Any) -> Any:
 def _now_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
+def _sandbox_enabled() -> bool:
+    return os.getenv("SANDBOX_MODE", "false").lower() == "true"
+
+
+def _load_sandbox_json(name: str) -> Optional[Dict[str, Any]]:
+    if not _sandbox_enabled():
+        return None
+    path = Path("data") / "sandbox" / f"{name}.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
 
 @tool("fetch_tuik_inflation")
 def fetch_tuik_inflation() -> str:
     """Fetch latest CPI/PPI inflation from TUIK via borsapy."""
     try:
+        sandbox = _load_sandbox_json("tuik")
+        if sandbox:
+            return json.dumps(sandbox, ensure_ascii=False)
         import borsapy  # type: ignore
 
         data: Dict[str, Any] = {"source": "borsapy", "timestamp": _now_iso()}
@@ -63,6 +82,9 @@ def fetch_tuik_inflation() -> str:
 def fetch_top_tefas_funds(limit: int = 5) -> str:
     """Fetch top-performing TEFAS funds via tefasfon."""
     try:
+        sandbox = _load_sandbox_json("tefas")
+        if sandbox:
+            return json.dumps(sandbox, ensure_ascii=False)
         import tefasfon  # type: ignore
 
         data: Dict[str, Any] = {"source": "tefasfon", "timestamp": _now_iso()}
@@ -113,6 +135,9 @@ def fetch_top_tefas_funds(limit: int = 5) -> str:
 def fetch_liquid_bist100_stocks(limit: int = 10) -> str:
     """Fetch highly liquid BIST 100 stocks using borsapy."""
     try:
+        sandbox = _load_sandbox_json("bist100")
+        if sandbox:
+            return json.dumps(sandbox, ensure_ascii=False)
         import borsapy  # type: ignore
 
         data: Dict[str, Any] = {"source": "borsapy", "timestamp": _now_iso()}

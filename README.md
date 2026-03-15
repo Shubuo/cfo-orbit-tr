@@ -39,7 +39,21 @@ CI/cron icin:
 export GEMINI_API_KEY=...
 export RISK_TOLERANCE=Low
 export INVESTMENT_CAPITAL=250000
+export REPORT_TYPE=weekly
+export OUTPUT_TYPE=bulletin
+export REGION=TR
 python main.py --non-interactive
+```
+
+## Rapor Tipi ve Cikti Turu
+- `REPORT_TYPE`: `weekly` veya `monthly`
+- `OUTPUT_TYPE`: `bulletin` veya `advice`
+- `REGION`: su an sadece `TR`
+
+## Sandbox Modu
+Dis kaynaklari olmadan calistirmak icin:
+```
+python main.py --sandbox --non-interactive
 ```
 
 ## Model Ayari

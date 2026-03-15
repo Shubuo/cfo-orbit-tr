@@ -1,0 +1,11 @@
+{
+  "source": "sandbox",
+  "timestamp": "2024-07-26T10:00:00Z",
+  "top_funds": [
+    { "fund_code": "AFA", "fund_name": "Ak Portföy Agresif Değişken Fon", "monthly_return": 10.2 },
+    { "fund_code": "TCD", "fund_name": "TEB Portföy Birinci Değişken Fon", "monthly_return": 9.8 },
+    { "fund_code": "YAY", "fund_name": "Yapı Kredi Portföy Yabancı Teknoloji Fonu", "monthly_return": 12.5 },
+    { "fund_code": "ZPC", "fund_name": "Ziraat Portföy Para Piyasası Fonu", "monthly_return": 0.8 },
+    { "fund_code": "GMR", "fund_name": "Garanti Portföy Hisse Senedi Fonu", "monthly_return": 8.5 }
+  ]
+}
