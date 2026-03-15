@@ -17,7 +17,8 @@ def create_tasks(
             "Use tools to fetch TUİK CPI/PPI inflation, top-performing TEFAS funds, "
             "and highly liquid BIST 100 stocks. "
             "Return a single JSON object with: "
-            "timestamp, inflation (CPI/PPI), tefas_top_funds, bist100_liquid."
+            "timestamp, inflation (CPI/PPI), tefas_top_funds, bist100_liquid. "
+            "Output ONLY JSON, no extra text."
         ),
         expected_output=(
             "JSON string with keys: timestamp, inflation, tefas_top_funds, "
@@ -35,7 +36,8 @@ def create_tasks(
             "You must split the strategy strictly into three horizons:\n"
             "Short-Term (0-6 months), Medium-Term (6-24 months), Long-Term (2+ years).\n"
             "Provide allocation weights for Equities, Fixed Income, and Commodities "
-            "per horizon. Output must be JSON."
+            "per horizon. Output must be JSON ONLY. Do not wrap with code fences. "
+            "No analysis, no extra text."
         ),
         expected_output=(
             "JSON with keys: short_term, medium_term, long_term. "
@@ -55,16 +57,17 @@ def create_tasks(
             "If data is missing or tools failed, clearly state this in Turkish "
             "inside the report and set data_health to 'partial'. Otherwise "
             "set data_health to 'ok'. "
-            "Call the draw_portfolio_pie tool with a JSON object representing the "
-            "overall allocation (sums to 100). "
             "Return a single JSON object with: report_markdown, terminal_summary, "
-            "portfolio_allocation, data_health."
+            "portfolio_allocation, data_health. "
+            "portfolio_allocation must be a flat object with numeric weights only "
+            "(no nested horizons), e.g. "
+            '{"Hisse Senetleri": 48, "Sabit Getirili Menkul Kıymetler": 38, "Emtia": 14}.'
         ),
         expected_output=(
             "JSON with keys: report_markdown (Markdown string), "
             "terminal_summary (string), portfolio_allocation (object), "
             "data_health (ok|partial). "
-            "All text must be Turkish."
+            "All text must be Turkish. Output ONLY JSON, no extra text."
         ),
         agent=agents["reporter"],
         context=[strategy_task],

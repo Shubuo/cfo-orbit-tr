@@ -40,7 +40,23 @@ class GoogleGenaiLLM(BaseLLM):
             self.client = client
         else:
             response = self.client.invoke(messages)
-        return getattr(response, "content", str(response))
+        content = getattr(response, "content", response)
+        if isinstance(content, list):
+            parts: list[str] = []
+            for part in content:
+                if isinstance(part, dict):
+                    if "text" in part:
+                        parts.append(str(part["text"]))
+                    elif "content" in part:
+                        parts.append(str(part["content"]))
+                    else:
+                        parts.append(str(part))
+                else:
+                    parts.append(str(part))
+            return "".join(parts).strip()
+        if isinstance(content, str):
+            return content
+        return str(content)
 
     def call(
         self,

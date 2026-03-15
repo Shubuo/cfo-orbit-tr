@@ -194,6 +194,31 @@ def _validate_allocation(allocation: Dict[str, float]) -> bool:
     return 98.0 <= total <= 102.0 and all(v >= 0 for v in allocation.values())
 
 
+def _overall_allocation(allocation: Dict[str, Any]) -> Dict[str, float]:
+    # If allocation is already flat numeric, return as-is.
+    if all(isinstance(v, (int, float)) for v in allocation.values()):
+        return {str(k): float(v) for k, v in allocation.items()}
+    # If allocation is horizon-based, compute average weights.
+    try:
+        st = allocation.get("short_term", {})
+        mt = allocation.get("medium_term", {})
+        lt = allocation.get("long_term", {})
+        keys = ["equities", "fixed_income", "commodities"]
+        if all(k in st for k in keys) and all(k in mt for k in keys) and all(k in lt for k in keys):
+            avg = {
+                "Hisse Senetleri": (float(st["equities"]) + float(mt["equities"]) + float(lt["equities"])) / 3.0,
+                "Sabit Getirili Menkul Kıymetler": (
+                    float(st["fixed_income"]) + float(mt["fixed_income"]) + float(lt["fixed_income"])
+                )
+                / 3.0,
+                "Emtia": (float(st["commodities"]) + float(mt["commodities"]) + float(lt["commodities"])) / 3.0,
+            }
+            return avg
+    except Exception:
+        pass
+    return {}
+
+
 def _probe_llm_or_fallback(
     llm: "GoogleGenaiLLM", fallback_llm: "GoogleGenaiLLM"
 ) -> "GoogleGenaiLLM":
@@ -311,7 +336,8 @@ def main() -> None:
             f.write(report_md)
 
     if allocation:
-        normalized = _normalize_allocation(allocation)
+        overall = _overall_allocation(allocation)
+        normalized = _normalize_allocation(overall)
         if _validate_allocation(normalized):
             draw_portfolio_pie(json.dumps(normalized, ensure_ascii=False))
 

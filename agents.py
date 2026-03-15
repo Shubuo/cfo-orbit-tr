@@ -4,12 +4,7 @@ from typing import Dict
 
 from crewai import Agent
 
-from tools import (
-    draw_portfolio_pie,
-    fetch_liquid_bist100_stocks,
-    fetch_top_tefas_funds,
-    fetch_tuik_inflation,
-)
+from tools import fetch_liquid_bist100_stocks, fetch_top_tefas_funds, fetch_tuik_inflation
 
 
 def create_agents(llm_pro: object, llm_flash: object) -> Dict[str, Agent]:
@@ -55,7 +50,6 @@ def create_agents(llm_pro: object, llm_flash: object) -> Dict[str, Agent]:
             "You are a CFO-level communicator who translates strategy into "
             "clear, actionable language for Turkish investors."
         ),
-        tools=[draw_portfolio_pie],
         llm=llm_pro,
         verbose=True,
         allow_delegation=False,
